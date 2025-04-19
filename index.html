@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Jarvis">
+    <title>Jarvis - Voice Assistant</title>
+
+    <!-- TailwindCSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        /* Custom Styles */
+        .ghost {
+            font-size: 5rem;
+            animation: float 2s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-15px);
+            }
+
+            100% {
+                transform: translateY(0);
+            }
+        }
+
+        /* Responsive bubble styles */
+        .bubble {
+            max-width: 80%;
+            margin: 5px;
+            padding: 12px 20px;
+            border-radius: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);  /* Darker, more visible shadow */
+        }
+
+        .user-bubble {
+            background-color: #4F94A0;  /* Softer color for user bubble */
+            color: black;
+            align-self: flex-end;
+        }
+
+        .ai-bubble {
+            background-color: #ECECEC;  /* Light color for AI bubble */
+            color: #222222;  /* Darker text for visibility */
+            align-self: flex-start;
+        }
+
+        body {
+            background-color: #f9f9f9;  /* Light background color */
+            color: #222222;  /* Dark text for readability */
+        }
+
+        /* Adjusting Ghost Animation */
+        .ghost {
+            color: #00C8A4;  /* Color change for ghost */
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 text-gray-900 h-screen flex flex-col justify-center items-center">
+
+    <!-- AI Ghost Avatar -->
+    <div class="ghost animate-pulse text-center mb-10">
+        👻
+    </div>
+
+    <!-- Voice Assistant Header -->
+    <h1 class="text-4xl font-semibold mb-8">Jarvis - Voice Assistant</h1>
+
+    <!-- Chat Area -->
+    <div id="chat-container" class="w-full h-64 overflow-y-auto px-4 space-y-4 flex flex-col-reverse">
+        <!-- Messages will be inserted dynamically here -->
+    </div>
+
+    <!-- Input Area -->
+    <div class="mt-8 w-full flex justify-center">
+        <!-- No button, as it's fully voice-activated -->
+    </div>
+
+    <!-- Transcript & Response -->
+    <p id="transcript" class="mt-4 text-center text-lg"></p>
+    <p id="response" class="mt-2 text-center text-lg text-gray-500"></p>
+
+    <!-- Voice Assistant Logic -->
+    <script>
+        const transcriptElem = document.getElementById('transcript');
+        const responseElem = document.getElementById('response');
+        const chatContainer = document.getElementById('chat-container');
+        const API_KEY = 'AIzaSyDTIsLSgcfdzPxkpmAf0DoBR6iVCMkQ6eY'; // Replace with your Gemini API Key
+
+        // Start listening for the voice input automatically
+        window.onload = () => {
+            startListening();
+        }
+
+        function startListening() {
+            const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            recognition.lang = 'en-US';
+            recognition.start();
+
+            recognition.onresult = async (event) => {
+                const userInput = event.results[0][0].transcript;
+                transcriptElem.textContent = "You: " + userInput;
+                addMessage(userInput, 'user');
+                const aiReply = await queryGemini(userInput);
+                addMessage(aiReply, 'ai');
+                responseElem.textContent = "Jarvis: " + aiReply;
+                speak(aiReply);
+            };
+
+            recognition.onerror = (e) => {
+                responseElem.textContent = "Error: " + e.error;
+            };
+        }
+
+        async function queryGemini(text) {
+            // Sanitize text by removing unwanted characters
+            text = text.replace(/[*#@!$%^&*()_+=\[\]{};:"\\|,.<>/?~`]/g, "").trim();
+            
+            const body = {
+                contents: [{ parts: [{ text }] }]
+            };
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body)
+            });
+            const data = await res.json();
+            return data.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I didn’t understand that.";
+        }
+
+        function addMessage(message, sender) {
+            const bubble = document.createElement('div');
+            bubble.classList.add('bubble', sender === 'user' ? 'user-bubble' : 'ai-bubble');
+            bubble.textContent = message;
+            chatContainer.appendChild(bubble);
+            chatContainer.scrollTop = chatContainer.scrollHeight; // Auto-scroll to bottom
+        }
+
+        function speak(text) {
+            // Trim the text to make the response shorter if it's too long
+            text = text.length > 50 ? text.slice(0, 50) + '...' : text;
+
+            const msg = new SpeechSynthesisUtterance(text);
+
+            // Get all available voices
+            const voices = speechSynthesis.getVoices();
+
+            // Select a male voice (You can iterate and find the right one)
+            const maleVoice = voices.find(voice => voice.name.includes("Google US English Male") || voice.lang === "en-US");
+
+            // Set the voice to the male voice found
+            if (maleVoice) {
+                msg.voice = maleVoice;
+            } else {
+                // Default to a male voice if no specific voice is found
+                msg.voice = voices[0]; // First voice as fallback
+            }
+
+            msg.rate = 1;  // Set rate for speech speed
+            speechSynthesis.speak(msg);  // Speak the message
+        }
+
+    </script>
+</body>
+
+</html>
